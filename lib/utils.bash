@@ -39,7 +39,7 @@ download_release() {
   curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
 }
 
-install_ag() {
+install_version() {
   local install_type="$1"
   local version="$2"
   local install_path="$3"
