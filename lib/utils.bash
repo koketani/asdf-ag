@@ -28,36 +28,39 @@ list_all_versions() {
   list_github_tags
 }
 
-download_release() {
-  local version filename url
-  version="$1"
-  filename="$2"
-
-  url="$GH_REPO/archive/refs/tags/${version}.tar.gz"
-
-  echo "* Downloading $TOOL_NAME release $version..."
-  curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
-}
-
 install_version() {
-  local install_type="$1"
-  local version="$2"
-  local install_path="$3"
+  local version="$1"
+  local install_path="$2"
 
-  if [ "$install_type" != "version" ]; then
-    fail "asdf-$TOOL_NAME supports release installs only"
-  fi
+  # Temporary directory to download and build the tool
+  TMP_DOWNLOAD_DIR=$(mktemp -d -t ag_build_XXXXXX)
+  echo "* Created a directory $TMP_DOWNLOAD_DIR to download and build the tool"
+  cleanup() { rm -rf "$TMP_DOWNLOAD_DIR"; }
+  trap cleanup ERR EXIT
 
   (
-    mkdir -p "$install_path/bin"
-    cp -r "$ASDF_DOWNLOAD_PATH"/* "$install_path"
+    # Download tar.gz file
+    local release_file="$TMP_DOWNLOAD_DIR/$TOOL_NAME-${version}.tar.gz"
+    local url="$GH_REPO/archive/refs/tags/${version}.tar.gz"
+    echo "* Downloading $TOOL_NAME release $version..."
+    curl "${curl_opts[@]}" -o "$release_file" -C - "$url" || fail "Could not download $url"
 
-    "$install_path/build.sh" || fail "Could not build. Resolve its dependecies beforehand. Ref:<$BUILD_REF>"
-    mv "$install_path/ag" "$install_path/bin"
+    # Extract contents of tar.gz file
+    local download_path="$TMP_DOWNLOAD_DIR/${TOOL_NAME}-$version"
+    mkdir -p "$download_path"
+    echo "* Extracting $release_file..."
+    tar -xzf "$release_file" -C "$download_path" --strip-components=1 || fail "Could not extract $release_file"
 
-    test -x "$install_path/bin/$TOOL_CMD" || fail "Expected $install_path/bin/$TOOL_CMD to be executable."
+    # Build
+    echo "* Building by using $download_path/build.sh..."
+    "$download_path/build.sh" || fail "Could not build, please resolve in the first $BUILD_REF"
 
-    echo "$TOOL_NAME $version installation was successful!"
+    # Install
+    local binary_path="$install_path/bin"
+    mkdir -p "$binary_path"
+    mv "$download_path/ag" "$binary_path"
+    test -x "$binary_path/$TOOL_CMD" || fail "Expected $binary_path/$TOOL_CMD to be executable."
+    echo "* $TOOL_NAME $version installation was successful!"
   ) || (
     rm -rf "$install_path"
     fail "An error ocurred while installing $TOOL_NAME $version."
