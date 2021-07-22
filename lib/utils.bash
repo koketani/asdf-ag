@@ -2,10 +2,10 @@
 
 set -euo pipefail
 
-# TODO: Ensure this is the correct GitHub homepage where releases can be downloaded for ag.
 GH_REPO="https://github.com/ggreer/the_silver_searcher"
+BUILD_REF="https://github.com/ggreer/the_silver_searcher#building-master"
 TOOL_NAME="ag"
-TOOL_TEST="ag --help"
+TOOL_CMD="ag"
 
 fail() {
   echo -e "asdf-$TOOL_NAME: $*"
@@ -14,11 +14,6 @@ fail() {
 
 curl_opts=(-fsSL)
 
-# NOTE: You might want to remove this if ag is not hosted on GitHub releases.
-if [ -n "${GITHUB_API_TOKEN:-}" ]; then
-  curl_opts=("${curl_opts[@]}" -H "Authorization: token $GITHUB_API_TOKEN")
-fi
-
 sort_versions() {
   sed 'h; s/[+-]/./g; s/.p\([[:digit:]]\)/.z\1/; s/$/.z/; G; s/\n/ /' |
     LC_ALL=C sort -t. -k 1,1 -k 2,2n -k 3,3n -k 4,4n -k 5,5n | awk '{print $2}'
@@ -26,13 +21,10 @@ sort_versions() {
 
 list_github_tags() {
   git ls-remote --tags --refs "$GH_REPO" |
-    grep -o 'refs/tags/.*' | cut -d/ -f3- |
-    sed 's/^v//' # NOTE: You might want to adapt this sed to remove non-version strings from tags
+    grep -o 'refs/tags/.*' | cut -d/ -f3-
 }
 
 list_all_versions() {
-  # TODO: Adapt this. By default we simply list the tag names from GitHub releases.
-  # Change this function if ag has other means of determining installable versions.
   list_github_tags
 }
 
@@ -41,8 +33,7 @@ download_release() {
   version="$1"
   filename="$2"
 
-  # TODO: Adapt the release URL convention for ag
-  url="$GH_REPO/archive/v${version}.tar.gz"
+  url="$GH_REPO/archive/refs/tags/${version}.tar.gz"
 
   echo "* Downloading $TOOL_NAME release $version..."
   curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
@@ -58,13 +49,13 @@ install_version() {
   fi
 
   (
-    mkdir -p "$install_path"
+    mkdir -p "$install_path/bin"
     cp -r "$ASDF_DOWNLOAD_PATH"/* "$install_path"
 
-    # TODO: Asert ag executable exists.
-    local tool_cmd
-    tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
-    test -x "$install_path/bin/$tool_cmd" || fail "Expected $install_path/bin/$tool_cmd to be executable."
+    "$install_path/build.sh" || fail "Could not build. Resolve its dependecies beforehand. Ref:<$BUILD_REF>"
+    mv "$install_path/ag" "$install_path/bin"
+
+    test -x "$install_path/bin/$TOOL_CMD" || fail "Expected $install_path/bin/$TOOL_CMD to be executable."
 
     echo "$TOOL_NAME $version installation was successful!"
   ) || (
