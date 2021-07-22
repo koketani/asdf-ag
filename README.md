@@ -18,7 +18,7 @@
 # Dependencies
 
 - `bash`, `curl`, `tar`: generic POSIX utilities.
-- `SOME_ENV_VAR`: set this environment variable in your shell config to load the correct version of tool x.
+- `Automake`, `pkg-config`, `PCRE`, `LZMA`: [the_silver_searcher's dependencies](https://github.com/ggreer/the_silver_searcher#building-master).
 
 # Install
 
